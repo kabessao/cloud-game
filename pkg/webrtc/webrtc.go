@@ -73,7 +73,7 @@ func Decode(in string, obj interface{}) error {
 // NewWebRTC create
 func NewWebRTC(conf webrtcConfig.Config) (*WebRTC, error) {
 	w := &WebRTC{
-		ID: uuid.Must(uuid.NewV4()).String(),
+		ID: string(network.NewUid()),
 
 		ImageChannel: make(chan WebFrame, 30),
 		AudioChannel: make(chan []byte, 1),
@@ -150,6 +150,10 @@ func (w *WebRTC) StartClient(iceCB OnIceCallback) (string, error) {
 
 	// Register text message handling
 	inputTrack.OnMessage(func(msg webrtc.DataChannelMessage) {
+		if msg.IsString {
+			_ = inputTrack.Send([]byte{0x42})
+			return
+		}
 		// TODO: Can add recover here
 		w.InputChannel <- msg.Data
 	})
@@ -171,6 +175,7 @@ func (w *WebRTC) StartClient(iceCB OnIceCallback) (string, error) {
 
 		}
 		if connectionState == webrtc.ICEConnectionStateFailed || connectionState == webrtc.ICEConnectionStateClosed || connectionState == webrtc.ICEConnectionStateDisconnected {
+			log.Printf("Stop webrtc %v room %v", w.ID, w.RoomID)
 			w.StopClient()
 		}
 	})

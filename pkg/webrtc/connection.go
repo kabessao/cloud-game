@@ -61,7 +61,7 @@ func DefaultPeerConnection(conf conf.Webrtc, ts *uint32) (*PeerConnection, error
 	peerConf := pion.Configuration{ICEServers: []pion.ICEServer{}}
 	for _, server := range conf.IceServers {
 		peerConf.ICEServers = append(peerConf.ICEServers, pion.ICEServer{
-			URLs:       []string{server.Url},
+			URLs:       []string{server.Urls},
 			Username:   server.Username,
 			Credential: server.Credential,
 		})

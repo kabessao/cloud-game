@@ -19,6 +19,7 @@ type Config struct {
 
 type Coordinator struct {
 	RoundRobin bool
+	Debug      bool
 	DebugHost  string
 	Library    games.Config
 	Monitoring monitoring.Config

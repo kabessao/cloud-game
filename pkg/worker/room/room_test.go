@@ -23,6 +23,7 @@ import (
 	"github.com/giongto35/cloud-game/v2/pkg/emulator/libretro/manager/remotehttp"
 	"github.com/giongto35/cloud-game/v2/pkg/encoder"
 	"github.com/giongto35/cloud-game/v2/pkg/games"
+	"github.com/giongto35/cloud-game/v2/pkg/logger"
 	"github.com/giongto35/cloud-game/v2/pkg/storage"
 	"github.com/giongto35/cloud-game/v2/pkg/thread"
 	"golang.org/x/image/font"
@@ -239,7 +240,8 @@ func getRoomMock(cfg roomMockConfig) roomMock {
 	conf.Encoder.Video.Codec = string(cfg.vCodec)
 
 	cloudStore, _ := storage.NewNoopCloudStorage()
-	room := NewRoom(cfg.roomName, cfg.game, cloudStore, conf)
+	l := logger.NewConsole(conf.Worker.Debug, "w", true)
+	room := NewRoom(cfg.roomName, cfg.game, cloudStore, conf, l)
 
 	// loop-wait the room initialization
 	var init sync.WaitGroup

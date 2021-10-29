@@ -1,12 +1,12 @@
 package coordinator
 
 import (
-	"github.com/giongto35/cloud-game/v2/pkg/logger"
 	"html/template"
 	"log"
 	"net/http"
 
 	"github.com/giongto35/cloud-game/v2/pkg/config/coordinator"
+	"github.com/giongto35/cloud-game/v2/pkg/logger"
 	"github.com/giongto35/cloud-game/v2/pkg/network/httpx"
 )
 

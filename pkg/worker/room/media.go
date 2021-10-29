@@ -1,9 +1,6 @@
 package room
 
 import (
-	"fmt"
-	"log"
-
 	"github.com/giongto35/cloud-game/v2/pkg/codec"
 	encoderConfig "github.com/giongto35/cloud-game/v2/pkg/config/encoder"
 	"github.com/giongto35/cloud-game/v2/pkg/encoder"
@@ -12,30 +9,6 @@ import (
 	"github.com/giongto35/cloud-game/v2/pkg/encoder/vpx"
 	"github.com/giongto35/cloud-game/v2/pkg/webrtc"
 )
-
-//func (r *Room) startVoice() {
-//	// broadcast voice
-//	go func() {
-//		for sample := range r.voiceInChannel {
-//			r.voiceOutChannel <- sample
-//		}
-//	}()
-//
-//	// fanout voice
-//	go func() {
-//		for sample := range r.voiceOutChannel {
-//			for _, webRTC := range r.rtcSessions {
-//				if webRTC.IsConnected() {
-//					// NOTE: can block here
-//					webRTC.VoiceOutChannel <- sample
-//				}
-//			}
-//		}
-//		for _, webRTC := range r.rtcSessions {
-//			close(webRTC.VoiceOutChannel)
-//		}
-//	}()
-//}
 
 func (r *Room) startAudio(sampleRate int, audio encoderConfig.Audio) {
 	sound, err := opus.NewEncoder(
@@ -48,15 +21,13 @@ func (r *Room) startAudio(sampleRate int, audio encoderConfig.Audio) {
 		opus.CallbackOnFullBuffer(r.broadcastAudio),
 	)
 	if err != nil {
-		log.Fatalf("error: cannot create audio encoder, %v", err)
+		r.log.Fatal().Err(err).Msg("couldn't create audio encoder")
 	}
-	log.Printf("OPUS: %v", sound.GetInfo())
-
+	r.log.Debug().Msgf("OPUS: %v", sound.GetInfo())
 	for samples := range r.audioChannel {
 		sound.BufferWrite(samples)
 	}
-
-	log.Println("Room ", r.ID, " audio channel closed")
+	r.log.Info().Msg("Audio channel has been closed")
 }
 
 func (r *Room) broadcastAudio(audio []byte) {
@@ -73,7 +44,7 @@ func (r *Room) startVideo(width, height int, video encoderConfig.Video) {
 	var enc encoder.Encoder
 	var err error
 
-	log.Println("Video codec:", video.Codec)
+	r.log.Info().Msgf("Video codec: %v", video.Codec)
 	if video.Codec == string(codec.H264) {
 		enc, err = h264.NewEncoder(width, height, h264.WithOptions(h264.Options{
 			Crf:      video.H264.Crf,
@@ -90,7 +61,7 @@ func (r *Room) startVideo(width, height int, video encoderConfig.Video) {
 	}
 
 	if err != nil {
-		fmt.Println("error create new encoder", err)
+		r.log.Error().Err(err).Msg("couldn't create a video encoder")
 		return
 	}
 
@@ -102,8 +73,8 @@ func (r *Room) startVideo(width, height int, video encoderConfig.Video) {
 
 	go func() {
 		defer func() {
-			if r := recover(); r != nil {
-				fmt.Println("Recovered when sent to close Image Channel")
+			if rc := recover(); rc != nil {
+				r.log.Error().Msgf("recovered video pipe from (%v)", rc)
 			}
 		}()
 
@@ -127,5 +98,5 @@ func (r *Room) startVideo(width, height int, video encoderConfig.Video) {
 			einput <- encoder.InFrame{Image: image.Image, Timestamp: image.Timestamp}
 		}
 	}
-	log.Println("Room ", r.ID, " video channel closed")
+	r.log.Info().Msg("Video channel has been closed")
 }

@@ -1,11 +1,11 @@
 package webrtc
 
 import (
-	"log"
 	"net"
 	"sync"
 
 	conf "github.com/giongto35/cloud-game/v2/pkg/config/webrtc"
+	"github.com/giongto35/cloud-game/v2/pkg/logger"
 	"github.com/giongto35/cloud-game/v2/pkg/network/socket"
 	"github.com/pion/interceptor"
 	pion "github.com/pion/webrtc/v3"
@@ -21,7 +21,7 @@ var (
 	settings     pion.SettingEngine
 )
 
-func DefaultPeerConnection(conf conf.Webrtc, ts *uint32) (*PeerConnection, error) {
+func DefaultPeerConnection(conf conf.Webrtc, ts *uint32, log *logger.Logger) (*PeerConnection, error) {
 	m := &pion.MediaEngine{}
 	if err := m.RegisterDefaultCodecs(); err != nil {
 		return nil, err
@@ -36,7 +36,13 @@ func DefaultPeerConnection(conf conf.Webrtc, ts *uint32) (*PeerConnection, error
 	i.Add(&ReTimeInterceptor{timestamp: ts})
 
 	settingsOnce.Do(func() {
-		settingEngine := pion.SettingEngine{}
+		customLogger := logger.PionLogger{}
+		customLogger.SetRootLogger(log)
+		customLogger.SetLevel(conf.LogLevel)
+
+		settingEngine := pion.SettingEngine{
+			LoggerFactory: customLogger,
+		}
 		if conf.IcePorts.Min > 0 && conf.IcePorts.Max > 0 {
 			if err := settingEngine.SetEphemeralUDPPortRange(conf.IcePorts.Min, conf.IcePorts.Max); err != nil {
 				panic(err)
@@ -48,8 +54,8 @@ func DefaultPeerConnection(conf conf.Webrtc, ts *uint32) (*PeerConnection, error
 					panic(err)
 				}
 				udpListener := l.(*net.UDPConn)
-				log.Printf("Listening for WebRTC traffic at %s", udpListener.LocalAddr())
-				settingEngine.SetICEUDPMux(pion.NewICEUDPMux(nil, udpListener))
+				log.Info().Msgf("Listening for WebRTC traffic at %s", udpListener.LocalAddr())
+				settingEngine.SetICEUDPMux(pion.NewICEUDPMux(customLogger, udpListener))
 			}
 		}
 		if conf.IceIpMap != "" {

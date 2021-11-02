@@ -36,13 +36,8 @@ func DefaultPeerConnection(conf conf.Webrtc, ts *uint32, log *logger.Logger) (*P
 	i.Add(&ReTimeInterceptor{timestamp: ts})
 
 	settingsOnce.Do(func() {
-		customLogger := logger.PionLogger{}
-		customLogger.SetRootLogger(log)
-		customLogger.SetLevel(conf.LogLevel)
-
-		settingEngine := pion.SettingEngine{
-			LoggerFactory: customLogger,
-		}
+		customLogger := logger.NewPionLogger(log, conf.LogLevel)
+		settingEngine := pion.SettingEngine{LoggerFactory: customLogger}
 		if conf.IcePorts.Min > 0 && conf.IcePorts.Max > 0 {
 			if err := settingEngine.SetEphemeralUDPPortRange(conf.IcePorts.Min, conf.IcePorts.Max); err != nil {
 				panic(err)

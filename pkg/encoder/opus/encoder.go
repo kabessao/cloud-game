@@ -1,9 +1,6 @@
 package opus
 
-import (
-	"fmt"
-	"log"
-)
+import "fmt"
 
 type Encoder struct {
 	*LibOpusEncoder
@@ -74,12 +71,9 @@ func (e *Encoder) BufferWrite(samples []int16) (written int) {
 	for k := n / len(e.buffer.Data); written < n || k >= 0; k-- {
 		written += e.buffer.Write(samples[written:])
 		if e.buffer.Full() {
-			data, err := e.Encode(e.buffer.Data)
-			if err != nil {
-				log.Println("[!] Failed to encode", err)
-				continue
+			if data, err := e.Encode(e.buffer.Data); err == nil {
+				e.onFullBuffer(data)
 			}
-			e.onFullBuffer(data)
 		}
 	}
 	return

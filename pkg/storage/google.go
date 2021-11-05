@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
 
 	"cloud.google.com/go/storage"
@@ -21,7 +20,6 @@ func NewGoogleCloudClient() (*GoogleCloudClient, error) {
 	ctx := context.Background()
 	client, err := storage.NewClient(ctx)
 	if err != nil {
-		log.Printf("warn: failed to create Google Cloud Storage client: %v", err)
 		return nil, err
 	}
 	bucket := client.Bucket("game-save")

@@ -5,13 +5,13 @@ import (
 	"encoding/gob"
 	"fmt"
 	"image"
-	"log"
 	"net"
 	"sync"
 	"time"
 
 	config "github.com/giongto35/cloud-game/v2/pkg/config/emulator"
 	"github.com/giongto35/cloud-game/v2/pkg/emulator"
+	"github.com/giongto35/cloud-game/v2/pkg/logger"
 )
 
 /*
@@ -68,6 +68,7 @@ type naEmulator struct {
 	players Players
 
 	done chan struct{}
+	log  *logger.Logger
 }
 
 // VideoExporter produces image frame to unix socket
@@ -85,10 +86,12 @@ type GameFrame struct {
 var NAEmulator *naEmulator
 var outputImg *image.RGBA
 
-// NAEmulator implements CloudEmulator interface based on NanoArch(golang RetroArch)
-func NewNAEmulator(roomID string, inputChannel <-chan InputEvent, storage Storage, conf config.LibretroCoreConfig) (*naEmulator, chan GameFrame, chan []int16) {
+// NewNAEmulator implements CloudEmulator interface for a Libretro frontend.
+func NewNAEmulator(roomID string, inputChannel <-chan InputEvent, storage Storage, conf config.LibretroCoreConfig, log *logger.Logger) (*naEmulator, chan GameFrame, chan []int16) {
 	imageChannel := make(chan GameFrame, 30)
 	audioChannel := make(chan []int16, 30)
+
+	SetLibretroLogger(log)
 
 	return &naEmulator{
 		meta: emulator.Metadata{
@@ -107,44 +110,40 @@ func NewNAEmulator(roomID string, inputChannel <-chan InputEvent, storage Storag
 		players:      NewPlayerSessionInput(),
 		roomID:       roomID,
 		done:         make(chan struct{}, 1),
+		log:          log,
 	}, imageChannel, audioChannel
 }
 
 // NewVideoExporter creates new video Exporter that produces to unix socket
-func NewVideoExporter(roomID string, imgChannel chan GameFrame) *VideoExporter {
+func NewVideoExporter(roomID string, imgChannel chan GameFrame, log *logger.Logger) *VideoExporter {
 	sockAddr := fmt.Sprintf("/tmp/cloudretro-retro-%s.sock", roomID)
-
 	go func(sockAddr string) {
-		log.Println("Dialing to ", sockAddr)
+		log.Info().Msgf("Dialing to %v", sockAddr)
 		conn, err := net.Dial("unix", sockAddr)
 		if err != nil {
-			log.Fatal("accept error: ", err)
+			log.Panic().Err(err)
 		}
 
 		defer conn.Close()
 
 		for img := range imgChannel {
 			reqBodyBytes := new(bytes.Buffer)
-			gob.NewEncoder(reqBodyBytes).Encode(img)
-			//fmt.Printf("%+v %+v %+v \n", img.Image.Stride, img.Image.Rect.Max.X, len(img.Image.Pix))
-			// conn.Write(img.Image.Pix)
+			_ = gob.NewEncoder(reqBodyBytes).Encode(img)
 			b := reqBodyBytes.Bytes()
-			fmt.Printf("Bytes %d\n", len(b))
-			conn.Write(b)
+			_, _ = conn.Write(b)
 		}
 	}(sockAddr)
-
 	return &VideoExporter{imageChannel: imgChannel}
 }
 
 // Init initialize new RetroArch cloud emulator
 // withImageChan returns an image stream as Channel for output else it will write to unix socket
-func Init(roomID string, withImageChannel bool, inputChannel <-chan InputEvent, storage Storage, config config.LibretroCoreConfig) (*naEmulator, chan GameFrame, chan []int16) {
-	emu, imageChannel, audioChannel := NewNAEmulator(roomID, inputChannel, storage, config)
+func Init(roomID string, withImageChannel bool, inputChannel <-chan InputEvent, storage Storage, config config.LibretroCoreConfig, log *logger.Logger) (*naEmulator, chan GameFrame, chan []int16) {
+	emu, imageChannel, audioChannel := NewNAEmulator(roomID, inputChannel, storage, config, log)
 	// Set to global NAEmulator
 	NAEmulator = emu
 	if !withImageChannel {
-		NAEmulator.videoExporter = NewVideoExporter(roomID, imageChannel)
+		NAEmulator.videoExporter = NewVideoExporter(roomID, imageChannel, log)
 	}
 
 	go NAEmulator.listenInput()
@@ -179,9 +178,8 @@ func (na *naEmulator) SetViewport(width int, height int) {
 }
 
 func (na *naEmulator) Start() {
-	err := na.LoadGame()
-	if err != nil {
-		log.Printf("error: couldn't load a save, %v", err)
+	if err := na.LoadGame(); err != nil {
+		na.log.Error().Err(err).Msg("couldn't load a save file")
 	}
 
 	ticker := time.NewTicker(time.Second / time.Duration(na.meta.Fps))
@@ -193,7 +191,7 @@ func (na *naEmulator) Start() {
 			nanoarchShutdown()
 			close(na.imageChannel)
 			close(na.audioChannel)
-			log.Println("Closed Director")
+			na.log.Debug().Msg("Closed Director")
 			return
 		default:
 		}
@@ -213,10 +211,7 @@ func (na *naEmulator) SaveGame() error {
 
 func (na *naEmulator) LoadGame() error {
 	if na.roomID != "" {
-		err := na.Load()
-		if err != nil {
-			return err
-		}
+		return na.Load()
 	}
 	return nil
 }
@@ -232,10 +227,6 @@ func (na *naEmulator) GetHashPath() string { return na.storage.GetSavePath() }
 
 func (na *naEmulator) GetSRAMPath() string { return na.storage.GetSRAMPath() }
 
-func (*naEmulator) GetViewport() interface{} {
-	return outputImg
-}
+func (*naEmulator) GetViewport() interface{} { return outputImg }
 
-func (na *naEmulator) Close() {
-	close(na.done)
-}
+func (na *naEmulator) Close() { close(na.done) }
